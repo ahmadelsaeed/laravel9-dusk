@@ -1,0 +1,325 @@
+<!doctype html>
+<html class="h-full">
+<head>
+    <!-- Meta Information -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.5.0/css/all.css" integrity="sha384-B4dIYHKNBt8Bc12p+WXckhzcICo0wtJAoU8YZTY5qE0Id1GSseTk6S+L3BlXeVIU" crossorigin="anonymous">
+
+    <title>Dusk Dashboard</title>
+</head>
+<body class="h-full">
+<div id="dashboard" class="max-h-screen h-screen">
+    <div class="h-full">
+        <div class="flex items-center h-16 px-2 w-full absolute pin-t" style="z-index: 900">
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"><defs><linearGradient id="a" x1="50%" x2="50%" y1="0%" y2="100%"><stop stop-color="#C7CECB" offset="0%"/><stop stop-color="#9CA5A0" offset="100%"/></linearGradient></defs><path fill="url(#a)" fill-rule="evenodd" d="M24 44a20 20 0 1 1 0-40 20 20 0 0 1 0 40zm9.7-10.17a13.97 13.97 0 0 0 2.88-4.18 14 14 0 0 1-18.5-18.5A14 14 0 1 0 33.7 33.83zm-14.14-5.65a16 16 0 0 0 12.29 4.66A12 12 0 0 1 14.9 15.89a16 16 0 0 0 4.66 12.29z"/></svg>
+
+            <h4 class="mb-0 ml-3"><strong>Laravel</strong> Dusk Dashboard</h4>
+
+            <button class="bg-transparent hover:bg-blue-500 text-blue-600 font-semibold hover:text-white py-2 px-4 border border-blue-500 hover:border-transparent rounded ml-auto mr-3"
+                    @click.prevent="startTests" title="Start Tests">
+                <span v-if="testsRunning">Watching...</span>
+                <span v-else>Start Watching</span>
+            </button>
+        </div>
+        <div class="flex h-full w-full absolute pt-16 pin-t">
+            <div class="w-1/4 h-full overflow-y-scroll">
+                <div class="block sticky ml-4">
+
+                    <div class="inline-flex mb-4 items-center justify-center w-full">
+                        <button @click="filter = null" class="focus:outline-none hover:bg-gray-500 text-gray-800 font-bold py-2 px-4 rounded-l" :class="{
+                            'bg-gray-500': filter === null,
+                            'bg-gray-400': filter !== null
+                        }">
+                            All ({{ _.size(groupedEvents) }})
+                        </button>
+                        <button @click="filter = 'success'" class="focus:outline-none hover:bg-gray-500 text-gray-800 font-bold py-2 px-4 border-l border-r border-gray-500" :class="{
+                            'bg-gray-500': filter === 'success',
+                            'bg-gray-400': filter !== 'success'
+                        }">
+                            Success ({{ _.size(success) }})
+                        </button>
+                        <button @click="filter = 'failure'" class="focus:outline-none hover:bg-gray-500 text-gray-800 font-bold py-2 px-4 rounded-r" :class="{
+                            'bg-gray-500': filter === 'failure',
+                            'bg-gray-400': filter !== 'failure'
+                        }">
+                            Failures ({{ _.size(failures) }})
+                        </button>
+                    </div>
+
+                    <ul class="list-reset">
+                        <li class="list-group-item" v-for="(events, test) in filteredEvents">
+                            <p class="my-3 lg:mb-2 text-gray-500 uppercase tracking-wider font-bold text-sm lg:text-xs"
+                               @click="expand(test)"
+                               style="white-space: nowrap"
+                               :class="{
+                                                'text-green-600': ! events[events.length-1].failure,
+                                                'text-red-600': events[events.length-1].failure,
+                                            }">
+                                <i class="fa fa-check" :class="{
+                                                'text-green-600 fa-check': ! events[events.length-1].failure,
+                                                'text-red-600 fa-times': events[events.length-1].failure,
+                                            }"></i>
+                                {{ test }}
+                                    <i class="fa fa-chevron-down"
+                                          v-show="!isExpanded(test)">
+                                    </i>
+                                    <i class="fa fa-chevron-up"
+                                          v-show="isExpanded(test)">
+                                    </i>
+                            </p>
+
+                            <ul class="list-reset mr-4 font-mono text-xs"
+                                v-show="isExpanded(test)">
+                                <li class="cursor-pointer bg-gray-400 hover:bg-gray-100 p-2"
+                                    v-for="(event, key) in events"
+                                    @mouseover="hoverEvent(event)"
+                                    @click="pinEvent(event)"
+                                    :class="{'bg-gray-100': event === pinnedEvent}">
+                                    <div class="flex items-center">
+                                        <div class="mr-2 flex items-center">
+                                            <div class="font-mono text-gray-600 pr-2" style="min-width: 25px;">
+                                                <i class="fa fa-thumbtack text-gray-500" v-if="event === hoveredEvent || event === pinnedEvent"></i>
+                                                <span v-else>{{ key+1 }}</span>
+                                            </div>
+                                            <i class="fa fa-check" :class="{
+                                                'text-green-600 fa-check': ! event.failure,
+                                                'text-red-600 fa-times': event.failure,
+                                            }"></i>
+                                        </div>
+                                        <span style="min-width: 180px;">{{ event.name }}</span>
+                                        <span>{{ event.arguments[0] || '' }}</span>
+                                    </div>
+                                    <div class="flex flex-col my-2" v-if="event === pinnedEvent && event.arguments.length > 1">
+                                        <div class="my-2" v-for="argument in event.arguments">
+                                            {{ argument }}
+                                        </div>
+                                    </div>
+                                    <div class="mt-2 w-full text-red-800" v-if="event.failure">
+                                        {{ event.failure }}
+                                    </div>
+                                </li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            <div class="w-3/4 bg-gray-500 h-full flex justify-center">
+                <div class="mt-4 flex flex-col shadow-2xl" style="width: 1000px; height: 680px;">
+                    <div class="rounded-sm bg-gray-400 p-2 h-12 justify-center items-center">
+                        <input type="text" class="focus:outline-none h-full w-full font-mono p-2" v-model="activeEvent.path" readonly>
+                    </div>
+                    <div class="h-full w-full flex flex-col">
+                        <iframe ref="iframe" id="iframe" frameborder="0" class="h-full w-full block bg-white overflow-auto"></iframe>
+                        <div class="flex bg-gray-600 text-white rounded-sm h-12 justify-center items-center text-center" v-if="activeEvent">
+                            <span class="mr-4">DOM Snapshot</span>
+                            <a  v-if="activeEvent.before" class="mx-2 rounded bg-white text-gray-900 border-gray-400 shadow p-2 no-underline" href="#" @click="loadBefore">Before</a>
+                            <a  v-if="activeEvent.before" class="mx-2 rounded bg-white text-gray-900 border-gray-400 shadow p-2 no-underline" href="#" @click="loadAfter">After</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/vue@2.5.17/dist/vue.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.slim.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.11/lodash.min.js"></script>
+
+<script>
+    var conn;
+
+    new Vue({
+        el: '#dashboard',
+
+        data: {
+            filter: null,
+            activeEvent: {},
+            hoveredEvent: null,
+            pinnedEvent: null,
+            events: [],
+            expanded: [],
+            testsRunning : false,
+            currentTestName : '',
+            timer: null,
+        },
+
+        computed: {
+            groupedEvents: function() {
+                return _.groupBy(this.events, 'test');
+            },
+
+            filteredEvents: function() {
+                if (this.filter === 'failure') {
+                    return this.failures;
+                } else if (this.filter === 'success') {
+                    return this.success;
+                }
+                return this.groupedEvents;
+            },
+
+            failures: function() {
+                return _.pickBy(this.groupedEvents, (values, key) => {
+                    return values[values.length -1].failure;
+                });
+            },
+
+            success: function() {
+                return _.pickBy(this.groupedEvents, (values, key) => {
+                    return ! values[values.length -1].failure;
+                });
+            }
+        },
+
+        methods: {
+            expand(key) {
+                if (!this.expanded.includes(key)) {
+                    this.expanded.push(key);
+                } else {
+                    for( var i = 0; i < this.expanded.length; i++){
+                        if ( this.expanded[i] === key) {
+                            this.expanded.splice(i, 1);
+                        }
+                    }
+                }
+            },
+
+            isExpanded(key)
+            {
+                if (this.expanded.includes(key)) {
+                    return true
+                }
+                return false;
+            },
+
+            hoverEvent: function(event) {
+                this.hoveredEvent = event;
+            },
+
+            loadEvent: function(event) {
+                if (this.activeEvent !== event) {
+                    this.activeEvent = event;
+                    this.loadHtml(event.html);
+                }
+            },
+
+            pinEvent: function(event) {
+                if (this.pinnedEvent === event) {
+                    this.pinnedEvent = null;
+                } else {
+                    this.pinnedEvent = event;
+                    this.loadEvent(event);
+                }
+            },
+
+            startTests: function() {
+                this.testsRunning = true;
+                this.events = [];
+
+                conn.send(JSON.stringify({
+                    method: 'startTests'
+                }));
+            },
+
+            loadBefore: function() {
+                this.loadHtml(this.activeEvent.before);
+            },
+
+            loadAfter: function() {
+                this.loadHtml(this.activeEvent.html);
+            },
+
+            loadHtml: function(html) {
+                var iframeDocument = window.document.getElementById('iframe').contentWindow.document;
+
+                iframeDocument.open('text/html', 'replace');
+                iframeDocument.write(html);
+                iframeDocument.close();
+
+                setTimeout(function () {
+                    this.highlightEvent(this.activeEvent);
+                }.bind(this), 50);
+            },
+
+            highlightEvent: function(event) {
+                let name = event.name;
+                let selector;
+
+                switch (name) {
+                    case 'click':
+                        selector = event.arguments[0];
+                        break;
+                    case 'select':
+                    case 'radio':
+                    case 'type':
+                        selector = `#${event.arguments[0]},`;
+                        selector += `input[name="${event.arguments[0]}"],`;
+                        selector += `select[name="${event.arguments[0]}"],`;
+                        selector += `textarea[name="${event.arguments[0]}"]`;
+                        break;
+                    case 'press':
+                        selector = '';
+                        selector += `input[type=submit][name='${event.arguments[0]}'],`;
+                        selector += `input[type=submit][value='${event.arguments[0]}'],`;
+                        selector += `input[type=button][value='${event.arguments[0]}'],`;
+                        selector += `button[name='${event.arguments[0]}'],`;
+                        selector += `button:contains('${event.arguments[0]}')`;
+                        break;
+                    case 'mouseover':
+                        selector = event.arguments[0];
+                        break;
+                }
+
+                if (selector) {
+                    try {
+                        document.getElementById('iframe')
+                            .contentWindow
+                            .jQuery(selector)
+                            .css('outline', '5px solid red');
+                    } catch (e) {}
+                }
+            }
+        },
+
+        mounted: function() {
+            conn = new WebSocket(`ws://${window.location.hostname}:${window.location.port}/socket`);
+
+            conn.onmessage = (e) => {
+                let message = JSON.parse(e.data);
+
+                window.clearTimeout(this.timer);
+                this.timer = setTimeout(function() {
+                    alert("Finished");
+                    }, 2000);
+
+                if (message.data.test !== this.currentTestName) {
+                    // new test has started
+                }
+                this.currentTestName = message.data.test;
+
+                if (message.name === 'dusk-event') {
+                    this.events.push(message.data);
+
+                    if (this.pinnedEvent === null) {
+                        this.loadEvent(message.data);
+                    }
+
+
+                }
+
+                if (message.name === 'dusk-failure') {
+                    this.events[(this.events.length -1 )].failure = message.data.message;
+                }
+
+                if (message.name === 'dusk-reset') {
+                    this.events = [];
+                }
+            };
+        }
+    });
+</script>
+</body>
+</html>
